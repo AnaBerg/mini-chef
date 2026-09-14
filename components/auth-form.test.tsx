@@ -82,15 +82,21 @@ describe("AuthForm", () => {
     render(<AuthForm mode="sign-in" />);
     const user = await fillCredentials();
     const button = screen.getByRole("button", { name: "Sign in" });
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+    expect(status.closest("form")).toBeNull();
     await user.click(button);
 
     expect(screen.getByRole("button", { name: "Please wait…" })).toBeDisabled();
+    expect(status).toHaveTextContent("Please wait…");
     expect(screen.getByLabelText("Email")).toBeDisabled();
     fireEvent.submit(button.closest("form")!);
     expect(mocks.signIn).toHaveBeenCalledOnce();
 
     await act(async () => { resolveRequest({ error: null }); });
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/dashboard"));
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toBeEmptyDOMElement();
   });
 
   it("recovers from network failures and clears the error on a successful retry", async () => {

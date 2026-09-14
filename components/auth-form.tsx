@@ -84,6 +84,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
               {pending ? "Please wait…" : isSignUp ? "Create account" : "Sign in"}
             </Button>
           </form>
+          <p role="status" className="sr-only">{pending ? "Please wait…" : ""}</p>
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {isSignUp ? "Already have an account? " : "New to Mini Chef? "}
             <Link href={isSignUp ? "/sign-in" : "/sign-up"} className="font-medium text-foreground underline underline-offset-4">
