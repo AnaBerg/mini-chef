@@ -67,6 +67,15 @@ describe("AuthForm", () => {
     expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
   });
 
+  it("provides a fallback when the server error has no message", async () => {
+    mocks.signIn.mockResolvedValue({ error: { message: "" } });
+    render(<AuthForm mode="sign-in" />);
+    const user = await fillCredentials();
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("We couldn't complete your request. Please try again.");
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
   it("disables submission while waiting and prevents duplicate requests", async () => {
     let resolveRequest!: (value: { error: null }) => void;
     mocks.signIn.mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));

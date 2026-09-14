@@ -10,5 +10,12 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     include: ["**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules/**", ".next/**", "e2e/**"],
+    coverage: {
+      provider: "v8",
+      include: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
+      exclude: ["**/*.{test,spec}.{ts,tsx}", "components/ui/**"],
+      reporter: ["text", "html", "lcov"],
+      thresholds: { lines: 90, statements: 90, functions: 90, branches: 90 },
+    },
   },
 });
