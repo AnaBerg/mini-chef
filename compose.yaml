@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mini_chef}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mini_chef_local}
+      POSTGRES_DB: ${POSTGRES_DB:-mini_chef}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-mini_chef}:${POSTGRES_PASSWORD:-mini_chef_local}@db:5432/${POSTGRES_DB:-mini_chef}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      target: runner
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-mini_chef}:${POSTGRES_PASSWORD:-mini_chef_local}@db:5432/${POSTGRES_DB:-mini_chef}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-replace-this-local-secret-with-openssl-rand-hex-32}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
