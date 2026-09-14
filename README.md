@@ -1,10 +1,10 @@
 # Mini Chef
 
-Next.js App Router with TypeScript, Bun, shadcn/ui (preset `beqDGaVU`), PostgreSQL 18, Drizzle ORM, and Better Auth email/password authentication. Vitest covers automated unit tests; Playwright covers end-to-end flows.
+Next.js App Router with TypeScript, Bun, shadcn/ui (preset `beqDGaVU`), PostgreSQL 18, Drizzle ORM, and Better Auth email/password authentication. Bun manages dependencies and scripts; Next.js and the test tools run on Node.js 24, including inside Docker. Vitest covers automated unit tests; Playwright covers end-to-end flows.
 
 ## Local development
 
-Install Bun 1.3.13 and Docker with the Compose plugin, then run:
+Install Node.js 24.15 or newer in the 24.x release line, Bun 1.3.13, and Docker with the Compose plugin, then run:
 
 ```sh
 cp .env.example .env

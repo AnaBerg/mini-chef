@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
-FROM oven/bun:1.3.13 AS base
+FROM oven/bun:1.3.13 AS bun
+
+FROM node:24-bookworm-slim AS base
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -9,20 +12,20 @@ RUN bun install --frozen-lockfile
 
 FROM dependencies AS build
 COPY . .
-RUN bun run --bun build
+RUN bun run build
 
 FROM dependencies AS migrate
 COPY . .
-USER bun
-CMD ["bun", "run", "--bun", "db:migrate"]
+USER node
+CMD ["bun", "run", "db:migrate"]
 
 FROM base AS runner
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000
-COPY --from=build --chown=bun:bun /app/public ./public
-COPY --from=build --chown=bun:bun /app/.next/standalone ./
-COPY --from=build --chown=bun:bun /app/.next/static ./.next/static
-USER bun
+COPY --from=build --chown=node:node /app/public ./public
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+USER node
 EXPOSE 3000
-CMD ["bun", "server.js"]
+CMD ["node", "server.js"]
