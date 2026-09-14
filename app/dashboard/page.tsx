@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getAuth } from "@/lib/auth";
 
 export default async function DashboardPage() {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) redirect("/sign-in");
 
   return (
