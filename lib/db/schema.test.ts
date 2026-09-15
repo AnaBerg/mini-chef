@@ -46,3 +46,21 @@ describe("authentication schema", () => {
     expect(table.updatedAt.onUpdateFn?.()).toEqual(now);
   });
 });
+
+it("uses restrictive tenant references for every foundation domain table", async () => {
+  const { households, householdMembers, shoppingSettings, domainOperations, auditEvents } = await import("./schema");
+  for (const table of [householdMembers, shoppingSettings, domainOperations, auditEvents]) {
+    const config = getTableConfig(table);
+    expect(table.householdId.notNull).toBe(true);
+    for (const reference of config.foreignKeys) {
+      expect(reference.onDelete).toBe("restrict");
+      const foreign = reference.reference();
+      if (foreign.foreignTable !== households && foreign.foreignTable !== user) {
+        expect(foreign.columns[0].name).toBe("household_id");
+        expect(foreign.foreignColumns[0].name).toBe("household_id");
+      }
+    }
+    expect(config.uniqueConstraints.some((constraint) => constraint.columns.length === 2
+      && constraint.columns[0].name === "household_id" && constraint.columns[1].name === "id")).toBe(true);
+  }
+});
