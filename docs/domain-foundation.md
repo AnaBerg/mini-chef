@@ -174,3 +174,43 @@ equal permissions, version conflicts, preserved history and removed access. UI t
 cover explicit settings, stable retry keys and confirmation/conflict behavior. The
 browser test creates two real auth accounts and seeds only their membership relationship
 until F04 provides invitations, then verifies deactivation and denied access end to end.
+
+## Session routing and isolation (F03)
+
+Successful Better Auth sign-in/registration opens `/dashboard`. This server route
+loads active memberships using the backed, unexpired session: zero opens household
+setup at `/households`, one opens `/households/[householdId]`, and multiple opens the
+selector at `/households`. The selector also supports creating another household.
+`Switch household` always returns to that selector, even when only one is available.
+The URL is the selection; no household ID or private domain data is persisted in
+local/session storage. Household pages retain executor-scoped reads and deny removed
+access without showing household details. Invitation entry remains owned by F04.
+
+Authentication, creation and self-deactivation replace the current document. Household
+links use ordinary document navigation. This discards the previous React tree and
+Next router cache rather than sharing a private client store between households.
+Private pages start hidden until their boundary initializes. Browser HTTP-history
+restoration (`back_forward`), BFCache restoration (`pageshow.persisted`) and same-document
+history changes hide private content and reload it through the server. `pagehide`
+hides snapshots before caching. An auth-change BroadcastChannel carries only an
+invalidation signal so other open tabs reload their own URLs against the current
+shared browser session. Other devices keep their independent provider sessions.
+
+Sign-out uses Better Auth's existing current-session endpoint. Only successful
+confirmation navigates to sign-in and clears the document/selection. Network failures,
+server errors, and a lost response after server revocation remain visibly unconfirmed
+and retryable. No client code claims to remove provider-owned HttpOnly cookies offline.
+Business memberships are never changed by sign-out. Client-submit buttons stay disabled
+in server HTML until hydration attaches their handlers, preventing native GET submissions
+of forms immediately after a document transition.
+
+F03 browser coverage exercises all membership counts, switching with distinct tenant
+member data, removed membership and expired-session reads, real browser back navigation,
+other-tab invalidation, network/server/lost-response sign-out failures, safe retries,
+preserved memberships, other-device session survival, and a new account in the same
+browser. Component tests additionally exercise the BFCache lifecycle and actual server
+render-to-hydration submit readiness. The history checks run against development too,
+where Next serves a different cache policy from production.
+Production browser tests use distinct documentation-only client IP headers (including
+separate device contexts and distinct IPv6 /64 prefixes) to avoid sharing the provider's
+real rate-limit bucket across unrelated tests. Application rate limiting stays enabled.

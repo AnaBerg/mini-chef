@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("visitors cannot open the dashboard", async ({ page }) => {
   await page.goto("/dashboard");
@@ -17,10 +17,10 @@ test("register, keep a session, sign out, reject a bad password, and sign in", a
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account", exact: true }).click();
-  await expect(page).toHaveURL("/dashboard");
-  await expect(page.getByText(email, { exact: true })).toBeVisible();
+  await expect(page).toHaveURL("/households");
+  await expect(page.getByRole("heading", { name: "Set up your household" })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Your kitchen" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Set up your household" })).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL("/sign-in");
@@ -33,6 +33,6 @@ test("register, keep a session, sign out, reject a bad password, and sign in", a
   await expect(page).toHaveURL("/sign-in");
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL("/dashboard");
-  await expect(page.getByText(email, { exact: true })).toBeVisible();
+  await expect(page).toHaveURL("/households");
+  await expect(page.getByRole("heading", { name: "Set up your household" })).toBeVisible();
 });
