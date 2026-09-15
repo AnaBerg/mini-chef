@@ -139,3 +139,35 @@ test("logout is retryable and unconfirmed on failure, then revokes only the curr
     await expect(page.getByRole("heading", { name: "Household unavailable" })).toBeVisible();
   } finally { await sql.end(); await otherDevice.close(); }
 });
+
+test("self-deactivation clears removed household data from sibling tabs", async ({ page, browser }) => {
+  const email = `self-removal-${randomUUID()}@example.test`;
+  const peerEmail = `remaining-${randomUUID()}@example.test`;
+  const sql = postgres(process.env.DATABASE_URL!, { max: 1 });
+  const peerDevice = await browser.newContext({ extraHTTPHeaders: clientHeaders(randomUUID()) });
+  try {
+    await register(page, email, "Departing private member");
+    const home = await create(page, "Removed private kitchen");
+    const peerPage = await peerDevice.newPage();
+    await register(peerPage, peerEmail, "Remaining private member");
+    // Seed only the relationship between real accounts until invitations are implemented.
+    await sql`INSERT INTO household_members (household_id, user_id) SELECT ${home.split('/').pop()!}, id FROM "user" WHERE email = ${peerEmail}`;
+    await page.reload();
+    const siblingTab = await page.context().newPage();
+    await siblingTab.goto(home);
+    await expect(siblingTab.getByRole("heading", { name: "Removed private kitchen" })).toBeVisible();
+    await expect(siblingTab.getByText("Remaining private member", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Deactivate your membership", exact: true }).click();
+    await page.getByRole("button", { name: "Confirm deactivation", exact: true }).click();
+    await expect(page).toHaveURL("/households");
+    await expect(page.getByRole("heading", { name: "Set up your household" })).toBeVisible();
+    // The tab must revalidate automatically; no manual reload or navigation is allowed here.
+    await expect(siblingTab.getByRole("heading", { name: "Household unavailable" })).toBeVisible();
+    await expect(siblingTab.getByText("Removed private kitchen", { exact: true })).toHaveCount(0);
+    await expect(siblingTab.getByText("Departing private member (you)", { exact: true })).toHaveCount(0);
+    await expect(siblingTab.getByText("Remaining private member", { exact: true })).toHaveCount(0);
+    const members = await sql`SELECT status FROM household_members WHERE household_id = ${home.split('/').pop()!} ORDER BY status`;
+    expect(members.map((member) => member.status)).toEqual(["active", "inactive"]);
+    await siblingTab.close();
+  } finally { await sql.end(); await peerDevice.close(); }
+});

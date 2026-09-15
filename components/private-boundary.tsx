@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { reloadPrivate, sessionChannel } from "@/lib/private-navigation";
+import { isReplacingPrivateDocument, reloadPrivate, sessionChannel } from "@/lib/private-navigation";
 
 /** Hide private snapshots before history caching; restore only through a fresh server read. */
 export function PrivateBoundary({ children }: { children: ReactNode }) {
@@ -18,7 +18,11 @@ export function PrivateBoundary({ children }: { children: ReactNode }) {
       if (event.persisted) { hide(); reloadPrivate(); }
     };
     const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(sessionChannel);
-    if (channel) channel.onmessage = revalidate;
+    if (channel) channel.onmessage = () => {
+      // A second channel in this document receives our own signal too. Its reload
+      // must not cancel an in-progress replacement to the new destination.
+      if (!isReplacingPrivateDocument()) revalidate();
+    };
     window.addEventListener("popstate", revalidate);
     window.addEventListener("pagehide", hide);
     window.addEventListener("pageshow", restore);

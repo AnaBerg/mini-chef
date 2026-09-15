@@ -194,7 +194,9 @@ restoration (`back_forward`), BFCache restoration (`pageshow.persisted`) and sam
 history changes hide private content and reload it through the server. `pagehide`
 hides snapshots before caching. An auth-change BroadcastChannel carries only an
 invalidation signal so other open tabs reload their own URLs against the current
-shared browser session. Other devices keep their independent provider sessions.
+shared browser session. Self-deactivation also broadcasts before returning to the
+selector, so sibling tabs stop displaying the removed household immediately. Ordinary
+household selection does not broadcast. Other devices keep their independent provider sessions.
 
 Sign-out uses Better Auth's existing current-session endpoint. Only successful
 confirmation navigates to sign-in and clears the document/selection. Network failures,

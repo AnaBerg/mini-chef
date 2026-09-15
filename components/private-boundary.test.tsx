@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { PrivateBoundary } from "./private-boundary";
-const mocks = vi.hoisted(() => ({ reloadPrivate: vi.fn(), sessionChannel: "test-session" }));
+const mocks = vi.hoisted(() => ({ reloadPrivate: vi.fn(), sessionChannel: "test-session", isReplacingPrivateDocument: vi.fn(() => false) }));
 vi.mock("@/lib/private-navigation", () => mocks);
 it("hides history snapshots and reloads restored documents before showing private content", () => {
   const { unmount } = render(<PrivateBoundary><p>Private household</p></PrivateBoundary>);
@@ -27,4 +27,20 @@ it("revalidates HTTP history restoration and same-document history", () => {
   expect(mocks.reloadPrivate).toHaveBeenCalledTimes(2);
   unmount();
   timing.mockRestore();
+});
+
+it("ignores its own broadcast while replacing the document but revalidates sibling changes", () => {
+  mocks.reloadPrivate.mockClear();
+  const channel: { onmessage: (() => void) | null; close: () => void } = { onmessage: null, close: vi.fn() };
+  vi.stubGlobal("BroadcastChannel", vi.fn(function () { return channel; }));
+  const { unmount } = render(<PrivateBoundary><p>Current household</p></PrivateBoundary>);
+  mocks.isReplacingPrivateDocument.mockReturnValue(true);
+  channel.onmessage!();
+  expect(mocks.reloadPrivate).not.toHaveBeenCalled();
+  mocks.isReplacingPrivateDocument.mockReturnValue(false);
+  channel.onmessage!();
+  expect(mocks.reloadPrivate).toHaveBeenCalledOnce();
+  expect(screen.getByText("Current household")).not.toBeVisible();
+  unmount();
+  vi.unstubAllGlobals();
 });
