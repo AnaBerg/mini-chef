@@ -8,6 +8,13 @@
       "when": 1789414425611,
       "tag": "0000_create_auth_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789438004127,
+      "tag": "0001_household_command_foundation",
+      "breakpoints": true
     }
   ]
 }
