@@ -8,12 +8,13 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ headers: async () => ({}) }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(path); } }));
 vi.mock("@/lib/domain/server", () => ({ getDomainExecutor: () => ({}) }));
+vi.mock("@/lib/domain/households", () => ({ householdDetails: async () => ({ timezone: "America/Sao_Paulo" }) }));
 vi.mock("@/lib/domain/invitations", () => ({ listInvitations: list }));
 vi.mock("@/components/private-boundary", () => ({ PrivateBoundary: ({ children }: { children: React.ReactNode }) => children }));
-vi.mock("@/components/invitation-forms", () => ({ InvitationEntry: () => <p>Entry</p>, InvitationManager: () => <p>Manager</p> }));
+vi.mock("@/components/invitation-forms", () => ({ InvitationEntry: () => <p>Entry</p>, InvitationManager: ({ timezone }: { timezone: string }) => <p>Manager {timezone}</p> }));
 it("renders invitation entry and authorized invitation management", async () => {
   render(<Page />); expect(screen.getByText("Household invitation")).toBeVisible();
-  list.mockResolvedValue([{ id: "invite", expiresAt: new Date() }]); render(await Manager({ params: Promise.resolve({ householdId: "home" }) })); expect(screen.getByText("Invite someone home")).toBeVisible();
+  list.mockResolvedValue([{ id: "invite", expiresAt: new Date() }]); render(await Manager({ params: Promise.resolve({ householdId: "home" }) })); expect(screen.getByText("Invite someone home")).toBeVisible(); expect(screen.getByText("Manager America/Sao_Paulo")).toBeVisible();
 });
 it("redirects unauthenticated users, denies household data and propagates unexpected failures", async () => {
   const input = { params: Promise.resolve({ householdId: "home" }) };

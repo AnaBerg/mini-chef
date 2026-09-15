@@ -32,7 +32,7 @@ it("drops stale previews on fragment changes and handles invalid links and netwo
 });
 it("creates one-time links, displays replay recovery, revokes and handles failures", async () => {
   const user = userEvent.setup(); mocks.create.mockResolvedValue({ invitationId: "invite", token: "a".repeat(43), expiresAt: "2030-01-01" }); mocks.revoke.mockResolvedValue({ success: true });
-  render(<InvitationManager householdId="home" invitations={[]} />);
+  render(<InvitationManager householdId="home" timezone="UTC" invitations={[]} />);
   await user.click(screen.getByText("Create invitation link")); expect(screen.getByLabelText("Your invitation link")).toHaveValue(`${window.location.origin}/invitations#${"a".repeat(43)}`);
   fireEvent.focus(screen.getByLabelText("Your invitation link"));
   mocks.create.mockResolvedValue({ invitationId: "invite", token: null, expiresAt: "2030-01-01" }); await user.click(screen.getByText("Create invitation link")); expect(screen.getByRole("alert")).toHaveTextContent("cannot be recovered");
@@ -57,7 +57,7 @@ it("does not prompt authenticated recipients to sign in before preview or after 
 it("keeps the displayed secret when revoking another invitation", async () => {
   mocks.create.mockResolvedValue({ invitationId: "shown", token: "a".repeat(43), expiresAt: "2030-01-01" });
   mocks.revoke.mockResolvedValue({ success: true });
-  render(<InvitationManager householdId="home" invitations={[{ id: "older", expiresAt: "2029-01-01" }]} />);
+  render(<InvitationManager householdId="home" timezone="UTC" invitations={[{ id: "older", expiresAt: "2029-01-01" }]} />);
   const user = userEvent.setup(); await user.click(screen.getByText("Create invitation link"));
   const value = `${window.location.origin}/invitations#${"a".repeat(43)}`;
   await user.click(screen.getAllByText("Revoke")[1]);
@@ -68,7 +68,7 @@ it("keeps the displayed secret when revoking another invitation", async () => {
 });
 it("keeps a displayed secret after metadata-only replay of another create request", async () => {
   mocks.create.mockResolvedValue({ invitationId: "shown", token: "a".repeat(43), expiresAt: "2030-01-01" });
-  render(<InvitationManager householdId="home" invitations={[]} />);
+  render(<InvitationManager householdId="home" timezone="UTC" invitations={[]} />);
   const user = userEvent.setup(); await user.click(screen.getByText("Create invitation link"));
   mocks.create.mockRejectedValueOnce(new Error("Lost response"));
   await user.click(screen.getByText("Create invitation link"));
@@ -78,4 +78,10 @@ it("keeps a displayed secret after metadata-only replay of another create reques
   expect(mocks.create.mock.lastCall![0].idempotencyKey).toBe(key);
   expect(screen.getByLabelText("Your invitation link")).toHaveValue(`${window.location.origin}/invitations#${"a".repeat(43)}`);
   expect(screen.getByRole("alert")).toHaveTextContent("cannot be recovered");
+});
+
+it("formats expiration in the household timezone across a UTC day boundary", () => {
+  render(<InvitationManager householdId="home" timezone="America/Sao_Paulo" invitations={[{ id: "invite", expiresAt: "2030-01-02T01:00:00.000Z" }]} />);
+  expect(screen.getByText("Expires 1/1/2030")).toBeVisible();
+  expect(screen.queryByText("Expires 1/2/2030")).not.toBeInTheDocument();
 });

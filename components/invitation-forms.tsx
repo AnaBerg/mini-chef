@@ -46,7 +46,7 @@ function InvitationConsent({ fragment }: { fragment: string }) {
     {!fragment && hydrated && <p role="alert">Open the complete invitation link to continue.</p>}
   </div>;
 }
-export function InvitationManager({ householdId, invitations }: { householdId: string; invitations: { id: string; expiresAt: string }[] }) {
+export function InvitationManager({ householdId, timezone, invitations }: { householdId: string; timezone: string; invitations: { id: string; expiresAt: string }[] }) {
   const hydrated = useHydrated();
   const [key, setKey] = useState<string | null>(null);
   const [link, setLink] = useState<{ invitationId: string; value: string } | null>(null);
@@ -81,6 +81,6 @@ export function InvitationManager({ householdId, invitations }: { householdId: s
     <Button disabled={!hydrated || pending} onClick={create}>{pending ? "Please wait…" : "Create invitation link"}</Button>
     {link && <div className="space-y-2 rounded-xl border bg-background p-5"><label htmlFor="invitation-link" className="font-medium">Your invitation link</label><input id="invitation-link" className="w-full rounded border p-3 text-sm" readOnly value={link.value} onFocus={(event) => event.currentTarget.select()} /><p className="text-sm text-muted-foreground">Copy this link now. It is shown only once and cannot be recovered after leaving this page.</p></div>}
     {error && <p role="alert">{error}</p>}
-    <h2 className="text-xl font-medium">Unused invitations</h2><ul className="space-y-3">{[...created, ...invitations].filter((item) => !removed.includes(item.id)).map((item) => <li key={item.id} className="flex items-center justify-between gap-4 rounded-xl border bg-background p-5"><p className="text-sm">Expires {new Date(item.expiresAt).toLocaleDateString("en-US", { timeZone: "UTC" })}</p><Button variant="outline" disabled={!hydrated || pending} onClick={() => revoke(item.id)}>Revoke</Button></li>)}</ul>
+    <h2 className="text-xl font-medium">Unused invitations</h2><ul className="space-y-3">{[...created, ...invitations].filter((item) => !removed.includes(item.id)).map((item) => <li key={item.id} className="flex items-center justify-between gap-4 rounded-xl border bg-background p-5"><p className="text-sm">Expires {new Date(item.expiresAt).toLocaleDateString("en-US", { timeZone: timezone })}</p><Button variant="outline" disabled={!hydrated || pending} onClick={() => revoke(item.id)}>Revoke</Button></li>)}</ul>
   </div>;
 }

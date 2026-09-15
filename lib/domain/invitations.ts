@@ -9,7 +9,7 @@ function tokenHash(token: string) {
   if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new DomainError("NOT_FOUND");
   return createHash("sha256").update(token).digest("hex");
 }
-export async function createInvitation(executor: DomainExecutor, input: { householdId: string; idempotencyKey: string }) {
+export async function createInvitation(executor: DomainExecutor, input: { householdId: string; idempotencyKey: string }): Promise<{ invitationId: string; expiresAt: string; token: string | null }> {
   if (!isUuid(input.householdId) || !isUuid(input.idempotencyKey)) throw new DomainError("INVALID_INPUT");
   // The secret exists only in this invocation. Kernel replay returns public metadata only.
   let secret: string | null = null;
