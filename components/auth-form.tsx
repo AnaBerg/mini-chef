@@ -1,5 +1,6 @@
 "use client";
 
+import { useInvitationFragment } from "@/lib/invitation-fragment";
 import { useHydrated } from "@/lib/use-hydrated";
 
 import Link from "next/link";
@@ -14,6 +15,7 @@ import { Label } from "@/components/ui/label";
 
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const hydrated = useHydrated();
+  const invitation = useInvitationFragment();
   const isSignUp = mode === "sign-up";
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +44,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         return;
       }
 
-      navigatePrivate("/dashboard");
+      navigatePrivate(invitation ? `/invitations${invitation}` : "/dashboard");
     } catch {
       setError("Unable to connect. Check your connection and try again.");
     } finally {
@@ -88,7 +90,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
           <p role="status" className="sr-only">{pending ? "Please wait…" : ""}</p>
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {isSignUp ? "Already have an account? " : "New to Mini Chef? "}
-            <Link href={isSignUp ? "/sign-in" : "/sign-up"} className="font-medium text-foreground underline underline-offset-4">
+            <Link href={`${isSignUp ? "/sign-in" : "/sign-up"}${invitation}`} className="font-medium text-foreground underline underline-offset-4">
               {isSignUp ? "Sign in" : "Create account"}
             </Link>
           </p>

@@ -22,6 +22,13 @@
       "when": 1789439326047,
       "tag": "0002_young_mordo",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789443181669,
+      "tag": "0003_household_invitations",
+      "breakpoints": true
     }
   ]
 }
