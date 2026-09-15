@@ -40,13 +40,19 @@ export function createInvitationService(db: DomainDatabase, resolveSession: () =
       if (!identity) throw new DomainError("UNAUTHENTICATED");
       const hash = tokenHash(token);
       return db.transaction(async (tx) => {
-      await requireSession(tx, identity);
-      const [preview] = await tx.select({ name: s.households.name }).from(s.householdInvitations)
-        .innerJoin(s.households, eq(s.households.id, s.householdInvitations.householdId))
-        .innerJoin(s.householdMembers, and(eq(s.householdMembers.householdId, s.householdInvitations.householdId), eq(s.householdMembers.id, s.householdInvitations.createdByMemberId)))
-        .where(and(eq(s.householdInvitations.tokenHash, hash), isNull(s.householdInvitations.acceptedAt), isNull(s.householdInvitations.revokedAt), sql`${s.householdInvitations.expiresAt} > clock_timestamp()`, eq(s.householdMembers.status, "active")));
-      await requireSession(tx, identity);
-      return preview ?? null;
+        const [anchor] = await tx.select().from(s.householdInvitations).where(eq(s.householdInvitations.tokenHash, hash));
+        if (!anchor) { await requireSession(tx, identity); return null; }
+        const householdId = anchor.householdId;
+        await tx.select().from(s.households).where(eq(s.households.id, householdId)).for("share");
+        await tx.select().from(s.householdMembers).where(and(eq(s.householdMembers.householdId, householdId), eq(s.householdMembers.id, anchor.createdByMemberId))).for("share");
+        await tx.select().from(s.householdInvitations).where(and(eq(s.householdInvitations.householdId, householdId), eq(s.householdInvitations.id, anchor.id))).for("share");
+        await requireSession(tx, identity);
+        const [preview] = await tx.select({ name: s.households.name }).from(s.householdInvitations)
+          .innerJoin(s.households, eq(s.households.id, s.householdInvitations.householdId))
+          .innerJoin(s.householdMembers, and(eq(s.householdMembers.householdId, s.householdInvitations.householdId), eq(s.householdMembers.id, s.householdInvitations.createdByMemberId)))
+          .where(and(eq(s.householdInvitations.householdId, householdId), eq(s.householdInvitations.id, anchor.id), eq(s.householdInvitations.tokenHash, hash), isNull(s.householdInvitations.acceptedAt), isNull(s.householdInvitations.revokedAt), sql`${s.householdInvitations.expiresAt} > clock_timestamp()`, eq(s.householdMembers.status, "active")));
+        await requireSession(tx, identity);
+        return preview ?? null;
       });
     },
     async accept(token: string, consent: boolean, retryOnly = false) {

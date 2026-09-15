@@ -240,7 +240,9 @@ Infrastructure must likewise avoid logging request bodies. The entry page reques
 no-referrer metadata. Authentication links preserve the fragment across login and
 registration, then return to explicit consent; the provider continues to own identity.
 Authentication continuation broadcasts only a null invalidation signal to other tabs.
-Preview requires a backed session and exposes only the name of a currently valid,
+Preview locks the household, creator membership and invitation before validating the
+backed session and current eligibility, so concurrent invalidation cannot commit
+during the read. Preview exposes only the name of a currently valid,
 unused invitation's household. Unknown, revoked, expired and inactive-creator links
 reveal no household name. Fragment changes remount consent so an old preview cannot
 be used to join a different household. The separate previous-acceptance button sends

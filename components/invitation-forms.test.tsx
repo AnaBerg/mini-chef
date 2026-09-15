@@ -47,3 +47,35 @@ it("asks anonymous visitors to authenticate before preview instead of claiming a
   render(<InvitationEntry />); await userEvent.setup().click(screen.getByText("Preview invitation"));
   expect(screen.getByRole("alert")).toHaveTextContent("Sign in or create an account");
 });
+it("does not prompt authenticated recipients to sign in before preview or after an unavailable preview", async () => {
+  mocks.preview.mockResolvedValue({ preview: null });
+  render(<InvitationEntry />);
+  expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+  await userEvent.setup().click(screen.getByText("Preview invitation"));
+  expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+});
+it("keeps the displayed secret when revoking another invitation", async () => {
+  mocks.create.mockResolvedValue({ invitationId: "shown", token: "a".repeat(43), expiresAt: "2030-01-01" });
+  mocks.revoke.mockResolvedValue({ success: true });
+  render(<InvitationManager householdId="home" invitations={[{ id: "older", expiresAt: "2029-01-01" }]} />);
+  const user = userEvent.setup(); await user.click(screen.getByText("Create invitation link"));
+  const value = `${window.location.origin}/invitations#${"a".repeat(43)}`;
+  await user.click(screen.getAllByText("Revoke")[1]);
+  expect(mocks.revoke.mock.lastCall![0].invitationId).toBe("older");
+  expect(screen.getByLabelText("Your invitation link")).toHaveValue(value);
+  await user.click(screen.getByText("Revoke"));
+  expect(screen.queryByLabelText("Your invitation link")).not.toBeInTheDocument();
+});
+it("keeps a displayed secret after metadata-only replay of another create request", async () => {
+  mocks.create.mockResolvedValue({ invitationId: "shown", token: "a".repeat(43), expiresAt: "2030-01-01" });
+  render(<InvitationManager householdId="home" invitations={[]} />);
+  const user = userEvent.setup(); await user.click(screen.getByText("Create invitation link"));
+  mocks.create.mockRejectedValueOnce(new Error("Lost response"));
+  await user.click(screen.getByText("Create invitation link"));
+  const key = mocks.create.mock.lastCall![0].idempotencyKey;
+  mocks.create.mockResolvedValue({ invitationId: "lost", token: null, expiresAt: "2030-01-02" });
+  await user.click(screen.getByText("Create invitation link"));
+  expect(mocks.create.mock.lastCall![0].idempotencyKey).toBe(key);
+  expect(screen.getByLabelText("Your invitation link")).toHaveValue(`${window.location.origin}/invitations#${"a".repeat(43)}`);
+  expect(screen.getByRole("alert")).toHaveTextContent("cannot be recovered");
+});

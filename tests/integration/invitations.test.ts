@@ -160,6 +160,63 @@ describe.skipIf(!databaseUrl)("single-use invitations", () => {
       expect(await db.select().from(s.householdMembers).where(eq(s.householdMembers.userId, "peer"))).toHaveLength(0);
     }
   });
+  it("serializes preview with revocation and creator deactivation before exposing the name", async () => {
+    await db.insert(s.householdMembers).values({ householdId, userId: "other" });
+    for (const invalidate of ["revocation", "creator"]) {
+      const invite = await create();
+      let ready!: () => void, release!: () => void;
+      const locked = new Promise<void>((resolve) => { ready = resolve; });
+      const released = new Promise<void>((resolve) => { release = resolve; });
+      const blocker = client.begin(async (tx) => {
+        await tx`SELECT id FROM households WHERE id = ${householdId} FOR UPDATE`;
+        ready(); await released;
+        if (invalidate === "revocation") await tx`UPDATE household_invitations SET revoked_at = clock_timestamp() WHERE id = ${invite.invitationId}`;
+        else await tx`UPDATE household_members SET status = 'inactive' WHERE household_id = ${householdId} AND user_id = 'creator'`;
+      });
+      await locked;
+      const outcome = service().preview(invite.token!).catch((error: unknown) => error);
+      try {
+        let blocked = false;
+        for (let attempt = 0; attempt < 150; attempt++) {
+          const [state] = await client`SELECT count(*)::integer AS count FROM pg_stat_activity WHERE datname = ${databaseName} AND wait_event_type = 'Lock'`;
+          if (state.count >= 1) { blocked = true; break; }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        expect(blocked).toBe(true);
+      } finally { release(); await blocker; }
+      expect(await outcome).toBeNull();
+      expect(await db.select().from(s.householdMembers).where(eq(s.householdMembers.userId, "peer"))).toHaveLength(0);
+    }
+  });
+  it("holds preview locks through session validation so revocation waits for the read", async () => {
+    const invite = await create();
+    let ready!: () => void, release!: () => void;
+    const locked = new Promise<void>((resolve) => { ready = resolve; });
+    const released = new Promise<void>((resolve) => { release = resolve; });
+    const blocker = client.begin(async (tx) => {
+      await tx`SELECT id FROM session WHERE id = 'peer-session' FOR UPDATE`;
+      ready(); await released;
+    });
+    async function waitForLocks(count: number) {
+      for (let attempt = 0; attempt < 150; attempt++) {
+        const [state] = await client`SELECT count(*)::integer AS count FROM pg_stat_activity WHERE datname = ${databaseName} AND wait_event_type = 'Lock'`;
+        if (state.count === count) return;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      throw new Error("Expected database lock barrier was not reached");
+    }
+    await locked;
+    const preview = service().preview(invite.token!);
+    let revocation: Promise<unknown> | undefined;
+    try {
+      await waitForLocks(1);
+      revocation = revokeInvitation(executor(), { householdId, invitationId: invite.invitationId, idempotencyKey: randomUUID() });
+      await waitForLocks(2);
+    } finally { release(); await blocker; }
+    expect(await preview).toEqual({ name: "Our kitchen" });
+    await revocation;
+    expect(await service().preview(invite.token!)).toBeNull();
+  });
   it("rejects fresh links on the read-only retry path without consuming them", async () => {
     const invite = await create();
     await expect(service().accept(invite.token!, true, true)).rejects.toThrow("NOT_FOUND");
