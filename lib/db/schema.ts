@@ -155,3 +155,20 @@ export const householdCreationRequests = pgTable("household_creation_requests", 
   unique("household_creation_requests_user_key").on(t.userId, t.idempotencyKey),
   check("household_creation_requests_hash_valid", sql`${t.requestHash} ~ '^[a-f0-9]{64}$'`),
 ]);
+
+export const householdInvitations = pgTable("household_invitations", {
+  ...rootColumns(),
+  householdId: uuid("household_id").notNull().references(() => households.id, { onDelete: "restrict" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  createdByMemberId: uuid("created_by_member_id").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptedByUserId: text("accepted_by_user_id").references(() => user.id, { onDelete: "restrict" }),
+}, (t) => [
+  unique("household_invitations_tenant_id").on(t.householdId, t.id),
+  foreignKey({ name: "household_invitations_creator_tenant_fk", columns: [t.householdId, t.createdByMemberId], foreignColumns: [householdMembers.householdId, householdMembers.id] }).onDelete("restrict"),
+  check("household_invitations_acceptance_paired", sql`(${t.acceptedAt} IS NULL) = (${t.acceptedByUserId} IS NULL)`),
+  check("household_invitations_hash_valid", sql`${t.tokenHash} ~ '^[a-f0-9]{64}$'`),
+  check("household_invitations_version_positive", sql`${t.version} > 0`),
+]);

@@ -30,3 +30,15 @@ it("still navigates when cross-tab notifications are unsupported and reloads thr
   reloadPrivate();
   expect(reload).toHaveBeenCalledOnce();
 });
+
+it("broadcasts only invalidation when authentication continues to an invitation fragment", async () => {
+  vi.resetModules();
+  vi.stubGlobal("window", { location: { replace: vi.fn() } });
+  const postMessage = vi.fn(); const close = vi.fn();
+  vi.stubGlobal("BroadcastChannel", class { postMessage = postMessage; close = close; });
+  const { navigatePrivate } = await import("./private-navigation");
+  navigatePrivate(`/invitations#${"s".repeat(43)}`);
+  expect(postMessage).toHaveBeenCalledWith(null);
+  expect(close).toHaveBeenCalledOnce();
+  vi.unstubAllGlobals();
+});

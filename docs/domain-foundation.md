@@ -216,3 +216,51 @@ where Next serves a different cache policy from production.
 Production browser tests use distinct documentation-only client IP headers (including
 separate device contexts and distinct IPv6 /64 prefixes) to avoid sharing the provider's
 real rate-limit bucket across unrelated tests. Application rate limiting stays enabled.
+
+## Single-use invitations (F04)
+
+`0003_household_invitations` adds a unique SHA-256 token hash, composite creator
+membership FK, account acceptor FK and paired acceptance fields. Active members use
+`/households/[householdId]/invitations` to create or revoke unused links; the member
+page links there and household setup explains how to open received invitations.
+Invitations expire seven days after creation. There is no email delivery or targeting.
+
+Creation runs through the household command kernel. A 32-byte cryptographically random
+secret is generated only inside the newly executed handler. Its hash is persisted;
+the operation result contains only invitation ID and expiry. The plaintext token is
+attached to the response outside the kernel. An identical request replays metadata
+with a null token: the secret cannot be reconstructed. A lost response can therefore
+be retried safely, then the unused invitation revoked and a fresh request created.
+The UI retains the request key during network failure and explains this recovery.
+
+Links use `/invitations#<token>`. URL fragments never enter HTTP GET requests or
+referrers; preview/acceptance submit the token only in a server-action POST body.
+No bearer secret is persisted in operation/audit payloads, browser storage or logs.
+Infrastructure must likewise avoid logging request bodies. The entry page requests
+no-referrer metadata. Authentication links preserve the fragment across login and
+registration, then return to explicit consent; the provider continues to own identity.
+Authentication continuation broadcasts only a null invalidation signal to other tabs.
+Preview requires a backed session and exposes only the name of a currently valid,
+unused invitation's household. Unknown, revoked, expired and inactive-creator links
+reveal no household name. Fragment changes remount consent so an old preview cannot
+be used to join a different household. The separate previous-acceptance button sends
+a read-only retry flag and cannot consume a fresh invitation.
+
+Acceptance locates the token hash, locks household, creator membership and invitation,
+then validates the provider-backed session. Consumed state is checked before fresh
+expiry/revocation/creator checks. The accepting account receives the original timestamp
+and membership identity plus current status, without updates or new operations/audit;
+another account gets the same generic unavailable outcome as an unknown token.
+Fresh acceptance checks wall-clock expiry after lock waits, creates or reactivates
+the unique account membership, and records operation/audit and consumption atomically.
+Existing member IDs, original join time and related history are retained. Dietary
+profile tables and their setup route belong to #9. Acceptance then rechecks current
+active household access before navigation; an inactive replay asks for a new invite.
+
+Integration tests use observed PostgreSQL lock barriers for competing consumers,
+same-account retries, revocation and invalidation during lock waits. They cover
+accepted expiry, inactive creator retries, removed-member replay, identity-preserving
+reactivation and schema constraints. Browser coverage uses real registration and
+explicit consent, verifies no membership before acceptance, revoked previews and
+fresh reactivation after removed-member replay. Existing session/rate-limit fixtures
+remain in place.
