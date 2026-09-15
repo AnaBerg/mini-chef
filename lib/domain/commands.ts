@@ -150,10 +150,11 @@ export async function deactivateMember(executor: DomainExecutor, request: {
     )).for("update");
     if (!member) throw new DomainError("NOT_FOUND");
     expectVersion(member.version, request.expectedVersion);
+    if (member.status === "inactive") return { memberId: member.id, status: member.status, version: member.version };
     const active = await tx.select({ id: schema.householdMembers.id }).from(schema.householdMembers).where(and(
       eq(schema.householdMembers.householdId, householdId), eq(schema.householdMembers.status, "active"),
     ));
-    if (member.status === "active" && active.length === 1) throw new DomainError("LAST_ACTIVE_MEMBER");
+    if (active.length === 1) throw new DomainError("LAST_ACTIVE_MEMBER");
     const [updated] = await tx.update(schema.householdMembers).set({
       status: "inactive", version: member.version + 1, updatedAt: new Date(),
     }).where(and(eq(schema.householdMembers.householdId, householdId), eq(schema.householdMembers.id, member.id))).returning();

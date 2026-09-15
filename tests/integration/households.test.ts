@@ -117,6 +117,30 @@ describe.skipIf(!databaseUrl)("household creation and membership", () => {
     await expect(db.insert(schema.householdMembers).values({ householdId, userId: "no-account" })).rejects.toThrow();
     await expect(db.delete(schema.householdMembers).where(eq(schema.householdMembers.id, initial.actorMemberId))).rejects.toThrow();
   });
+  it("keeps already-inactive membership unchanged for a fresh request while preserving command replay", async () => {
+    const { householdId } = await service.create(input());
+    const [peer] = await db.insert(schema.householdMembers).values({ householdId, userId: "peer" }).returning();
+    const removal = { householdId, memberId: peer.id, expectedVersion: 1, idempotencyKey: randomUUID() };
+    const result = await deactivateMember(executor, removal);
+    const [before] = await db.select().from(schema.householdMembers).where(eq(schema.householdMembers.id, peer.id));
+    const membershipAudit = () => db.select().from(schema.auditEvents).where(eq(schema.auditEvents.entityType, "household_member"));
+    const beforeAudit = await membershipAudit();
+    const fresh = { ...removal, expectedVersion: result.version, idempotencyKey: randomUUID() };
+    expect(await deactivateMember(executor, fresh)).toEqual(result);
+    const [after] = await db.select().from(schema.householdMembers).where(eq(schema.householdMembers.id, peer.id));
+    expect(after).toEqual(before);
+    expect(await membershipAudit()).toEqual(beforeAudit);
+    // The accepted no-op still has its own operation and generic command summary.
+    expect(await db.select().from(schema.domainOperations)).toHaveLength(3);
+    expect(await db.select().from(schema.auditEvents)).toHaveLength(4);
+    expect(await deactivateMember(executor, removal)).toEqual(result);
+    expect(await deactivateMember(executor, fresh)).toEqual(result);
+    expect(await db.select().from(schema.domainOperations)).toHaveLength(3);
+    expect(await db.select().from(schema.auditEvents)).toHaveLength(4);
+    await expect(deactivateMember(executor, { ...removal, idempotencyKey: randomUUID() })).rejects.toThrow("VERSION_CONFLICT");
+    const home = await householdDetails(executor, householdId);
+    await expect(deactivateMember(executor, { ...removal, memberId: home.actorMemberId, idempotencyKey: randomUUID() })).rejects.toThrow("LAST_ACTIVE_MEMBER");
+  });
   it("serializes competing removals and leaves one active member", async () => {
     const { householdId } = await service.create(input());
     const initial = await householdDetails(executor, householdId);
