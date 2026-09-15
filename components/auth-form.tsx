@@ -1,7 +1,9 @@
 "use client";
 
+import { useHydrated } from "@/lib/use-hydrated";
+
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { navigatePrivate } from "@/lib/private-navigation";
 import { useState, type FormEvent } from "react";
 
 import { authClient } from "@/lib/auth-client";
@@ -11,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
-  const router = useRouter();
+  const hydrated = useHydrated();
   const isSignUp = mode === "sign-up";
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +42,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         return;
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      navigatePrivate("/dashboard");
     } catch {
       setError("Unable to connect. Check your connection and try again.");
     } finally {
@@ -80,7 +81,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
               </div>
             </fieldset>
             {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={pending} className="h-11 w-full">
+            <Button type="submit" disabled={!hydrated || pending} className="h-11 w-full">
               {pending ? "Please wait…" : isSignUp ? "Create account" : "Sign in"}
             </Button>
           </form>

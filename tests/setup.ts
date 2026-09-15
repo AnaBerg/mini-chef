@@ -3,3 +3,6 @@ import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 afterEach(cleanup);
+
+// jsdom does not provide browser navigation timing entries.
+Object.defineProperty(performance, "getEntriesByType", { configurable: true, value: () => [] });

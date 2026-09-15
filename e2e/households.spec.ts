@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test, clientHeaders } from "./fixtures";
 import postgres from "postgres";
 
 test("create a household, manage equal memberships, preserve removed history and deny old access", async ({ page, browser }) => {
@@ -11,8 +11,7 @@ test("create a household, manage equal memberships, preserve removed history and
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Create account", exact: true }).click();
-  await expect(page).toHaveURL("/dashboard");
-  await page.getByRole("link", { name: "Manage households" }).click();
+  await expect(page).toHaveURL("/households");
   await page.getByLabel("Household name").fill("Our shared kitchen");
   await page.getByLabel("Timezone", { exact: true }).fill("america/sao_paulo");
   await page.getByLabel("Yes, include planned meals").check();
@@ -22,7 +21,7 @@ test("create a household, manage equal memberships, preserve removed history and
   await expect(page.getByText(/America\/Sao_Paulo/)).toBeVisible();
   const householdUrl = page.url();
   const householdId = new URL(householdUrl).pathname.split("/").pop()!;
-  const peerContext = await browser.newContext();
+  const peerContext = await browser.newContext({ extraHTTPHeaders: clientHeaders(randomUUID()) });
   const peerPage = await peerContext.newPage();
   const sql = postgres(process.env.DATABASE_URL!, { max: 1 });
   try {
@@ -31,7 +30,7 @@ test("create a household, manage equal memberships, preserve removed history and
     await peerPage.getByLabel("Email", { exact: true }).fill(peerEmail);
     await peerPage.getByLabel("Password", { exact: true }).fill(password);
     await peerPage.getByRole("button", { name: "Create account", exact: true }).click();
-    await expect(peerPage).toHaveURL("/dashboard");
+    await expect(peerPage).toHaveURL("/households");
     // Invitations belong to F04. Seed only the relationship between two real registered accounts.
     const [peer] = await sql`SELECT id FROM "user" WHERE email = ${peerEmail}`;
     await sql`INSERT INTO household_members (household_id, user_id) VALUES (${householdId}, ${peer.id})`;

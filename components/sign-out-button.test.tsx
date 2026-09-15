@@ -5,12 +5,13 @@ import { SignOutButton } from "./sign-out-button";
 
 const mocks = vi.hoisted(() => ({ signOut: vi.fn(), push: vi.fn(), refresh: vi.fn() }));
 vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: mocks.signOut } }));
+vi.mock("@/lib/private-navigation", () => ({ navigatePrivate: mocks.push }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks }));
 
 describe("SignOutButton", () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("prevents duplicate clicks until sign-out completes, then refreshes the session", async () => {
+  it("prevents duplicate clicks until sign-out completes, then replaces the private document", async () => {
     let finish!: (result: { error: null }) => void;
     mocks.signOut.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
     render(<SignOutButton />);
@@ -23,12 +24,12 @@ describe("SignOutButton", () => {
     expect(mocks.push).not.toHaveBeenCalled();
     await act(async () => finish({ error: null }));
     expect(mocks.push).toHaveBeenCalledWith("/sign-in");
-    expect(mocks.refresh).toHaveBeenCalledOnce();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it.each([
-    ["Session unavailable", "Session unavailable"],
-    ["", "Unable to sign out. Please try again."],
+    ["Session unavailable", "Sign-out is unconfirmed. Please try again."],
+    ["", "Sign-out is unconfirmed. Please try again."],
   ])("shows a server error and leaves the session in place (%s)", async (message, expected) => {
     mocks.signOut.mockResolvedValue({ error: { message } });
     render(<SignOutButton />);
@@ -43,7 +44,7 @@ describe("SignOutButton", () => {
     mocks.signOut.mockRejectedValueOnce(new Error("Offline")).mockResolvedValueOnce({ error: null });
     render(<SignOutButton />);
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Unable to connect. Please try again.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Sign-out is unconfirmed. Check your connection and try again.");
     expect(mocks.push).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

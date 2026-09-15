@@ -1,5 +1,8 @@
 "use client";
 
+import { useHydrated } from "@/lib/use-hydrated";
+
+import { navigatePrivate } from "@/lib/private-navigation";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createHouseholdAction, deactivateMemberAction } from "@/app/households/actions";
@@ -19,7 +22,7 @@ const errors: Record<string, string> = {
 const message = (code: string) => errors[code] ?? "Something went wrong. Please try again.";
 
 export function CreateHouseholdForm() {
-  const router = useRouter();
+  const hydrated = useHydrated();
   const key = useRef<string | null>(null);
   const previous = useRef<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -34,7 +37,7 @@ export function CreateHouseholdForm() {
     try {
       const result = await createHouseholdAction({ ...input, idempotencyKey: key.current! });
       if (result.error) setError(message(result.error));
-      else router.push(`/households/${result.householdId}`);
+      else navigatePrivate(`/households/${result.householdId}`);
     } catch { setError(message("UNEXPECTED")); }
     finally { setPending(false); }
   }}>
@@ -46,7 +49,7 @@ export function CreateHouseholdForm() {
       <p className="text-sm text-muted-foreground">The planning horizon starts at 7 days.</p>
     </fieldset>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <Button type="submit" disabled={pending}>{pending ? "Creating…" : "Create household"}</Button>
+    <Button type="submit" disabled={!hydrated || pending}>{pending ? "Creating…" : "Create household"}</Button>
   </form>;
 }
 
@@ -66,7 +69,7 @@ export function DeactivateMemberButton({ householdId, memberId, expectedVersion,
         try {
           const result = await deactivateMemberAction({ householdId, memberId, expectedVersion, idempotencyKey: key.current });
           if (result.error) { setError(message(result.error)); setConflict(result.error === "VERSION_CONFLICT"); }
-          else if (self) router.push("/households");
+          else if (self) navigatePrivate("/households");
           else { setConfirming(false); router.refresh(); }
         } catch { setError(message("UNEXPECTED")); }
         finally { setPending(false); }

@@ -1,39 +1,38 @@
-import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({ headers: vi.fn(), redirect: vi.fn(), getAuth: vi.fn(), getSession: vi.fn() }));
+const mocks = vi.hoisted(() => ({ headers: vi.fn(), redirect: vi.fn(), list: vi.fn(), service: vi.fn() }));
+vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
-vi.mock("@/lib/auth", () => ({ getAuth: mocks.getAuth }));
-vi.mock("@/components/sign-out-button", () => ({ SignOutButton: () => <button>Sign out</button> }));
+vi.mock("@/lib/domain/server", () => ({ getHouseholdService: mocks.service }));
+import { DomainError } from "@/lib/domain/commands";
 import DashboardPage from "./page";
-
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.getAuth.mockReturnValue({ api: { getSession: mocks.getSession } });
+  mocks.service.mockReturnValue({ list: mocks.list });
   mocks.redirect.mockImplementation(() => { throw new Error("NEXT_REDIRECT"); });
 });
-
-it("redirects unauthenticated visitors to sign in", async () => {
-  mocks.headers.mockResolvedValue(new Headers());
-  mocks.getSession.mockResolvedValue(null);
+it.each([
+  [[], "/households"],
+  [[{ id: "one" }], "/households/one"],
+  [[{ id: "one" }, { id: "two" }], "/households"],
+])("routes by current active membership count", async (homes, destination) => {
+  mocks.list.mockResolvedValue(homes);
   await expect(DashboardPage()).rejects.toThrow("NEXT_REDIRECT");
-  expect(mocks.redirect).toHaveBeenCalledExactlyOnceWith("/sign-in");
+  expect(mocks.redirect).toHaveBeenCalledExactlyOnceWith(destination);
 });
-
-it("awaits request headers before initializing auth and renders the authenticated user", async () => {
-  let resolveHeaders!: (headers: Headers) => void;
-  mocks.headers.mockReturnValue(new Promise<Headers>((resolve) => { resolveHeaders = resolve; }));
-  mocks.getSession.mockResolvedValue({ user: { name: "Ana", email: "ana@example.com" } });
-  const page = DashboardPage();
-  expect(mocks.getAuth).not.toHaveBeenCalled();
-  const headers = new Headers({ cookie: "session=example" });
-  resolveHeaders(headers);
-  render(await page);
-  expect(mocks.getSession).toHaveBeenCalledExactlyOnceWith({ headers });
-  expect(mocks.redirect).not.toHaveBeenCalled();
-  expect(screen.getByRole("heading", { name: "Your kitchen" })).toBeInTheDocument();
-  expect(screen.getByText("Welcome, Ana.")).toBeInTheDocument();
-  expect(screen.getByText("ana@example.com")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+it("resolves request context before initializing the service", async () => {
+  let finish!: () => void;
+  mocks.headers.mockReturnValue(new Promise<void>((resolve) => { finish = resolve; }));
+  mocks.list.mockResolvedValue([]);
+  const result = DashboardPage();
+  expect(mocks.service).not.toHaveBeenCalled();
+  finish();
+  await expect(result).rejects.toThrow("NEXT_REDIRECT");
+});
+it("redirects expired sessions and propagates unexpected failures", async () => {
+  mocks.list.mockRejectedValue(new DomainError("UNAUTHENTICATED"));
+  await expect(DashboardPage()).rejects.toThrow("NEXT_REDIRECT");
+  expect(mocks.redirect).toHaveBeenCalledWith("/sign-in");
+  mocks.list.mockRejectedValue(new Error("database"));
+  await expect(DashboardPage()).rejects.toThrow("database");
 });

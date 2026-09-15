@@ -18,6 +18,7 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 
+vi.mock("@/lib/private-navigation", () => ({ navigatePrivate: mocks.push }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
 }));
@@ -34,7 +35,7 @@ describe("AuthForm", () => {
     vi.resetAllMocks();
   });
 
-  it("signs in and refreshes the protected destination", async () => {
+  it("signs in and opens a fresh protected document", async () => {
     mocks.signIn.mockResolvedValue({ data: {}, error: null });
     render(<AuthForm mode="sign-in" />);
     const user = await fillCredentials();
@@ -42,7 +43,7 @@ describe("AuthForm", () => {
 
     expect(mocks.signIn).toHaveBeenCalledWith({ email: "chef@example.com", password: "a-secure-password" });
     expect(mocks.push).toHaveBeenCalledWith("/dashboard");
-    expect(mocks.refresh).toHaveBeenCalledOnce();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it("sends the name when creating an account", async () => {

@@ -1,7 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ create: vi.fn(), deactivate: vi.fn(), push: vi.fn(), refresh: vi.fn() }));
+vi.mock("@/lib/private-navigation", () => ({ navigatePrivate: mocks.push }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }) }));
 vi.mock("@/app/households/actions", () => ({ createHouseholdAction: mocks.create, deactivateMemberAction: mocks.deactivate }));
 import { CreateHouseholdForm, DeactivateMemberButton } from "./household-forms";
@@ -93,4 +96,16 @@ it("keeps a retry key after transient membership failure and displays domain err
   await user.click(screen.getByRole("button", { name: "Confirm deactivation" }));
   expect(screen.getByRole("alert")).toHaveTextContent("last active member");
   expect(mocks.deactivate.mock.calls[0][0].idempotencyKey).toBe(mocks.deactivate.mock.calls[1][0].idempotencyKey);
+});
+
+it("disables server-rendered creation until hydration attaches its submit handler", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  container.innerHTML = renderToString(<CreateHouseholdForm />);
+  expect(container.querySelector('button[type="submit"]')).toBeDisabled();
+  let root!: ReturnType<typeof hydrateRoot>;
+  await act(async () => { root = hydrateRoot(container, <CreateHouseholdForm />); });
+  expect(container.querySelector('button[type="submit"]')).toBeEnabled();
+  await act(async () => root.unmount());
+  container.remove();
 });
