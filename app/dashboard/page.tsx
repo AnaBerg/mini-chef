@@ -27,7 +27,8 @@ export default async function DashboardPage() {
           <CardContent className="flex flex-col items-center py-12 text-center">
             <Sprout className="mb-5 size-8 text-primary" strokeWidth={1.5} aria-hidden="true" />
             <h2 className="text-lg font-medium">Room for something good</h2>
-            <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">Your account is ready. This is where your Mini Chef journey begins.</p>
+            <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">Bring your kitchen together. Create a household and manage its members.</p>
+            <Link href="/households" className="mt-6 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground">Manage households</Link>
           </CardContent>
         </Card>
       </section>

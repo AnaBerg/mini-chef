@@ -88,7 +88,8 @@ Return stable JSON-safe identifiers/values, using ISO strings for timestamp resu
 `deactivateMember` follows the same protocol, locks the scoped target member, compares
 its version, and records before/after status and version. A command that wins the
 household lock may finish before deactivation; one queued after deactivation cannot
-write. Self-deactivation is valid but subsequent normal commands/replays are denied.
+write. Self-deactivation is valid unless this is the last active member; subsequent normal
+commands/replays are denied.
 
 Audit summaries contain only kind and IDs. Feature audit payloads must be explicitly
 constructed from permitted domain fields: never copy whole request/session objects,
@@ -137,3 +138,39 @@ observe PostgreSQL lock waits for duplicate and authorization/deactivation races
 Without the URL, local integration tests are explicitly skipped. CI requires it and
 provisions PostgreSQL for coverage; missing configuration fails instead of silently
 skipping acceptance tests.
+
+## Household creation and membership (F02)
+
+`/households` lists current active memberships and provides household creation. The
+client chooses planned-meal inclusion explicitly and submits a UUID request key.
+Names are trimmed and limited to 100 characters; supported IANA names are normalized
+through Intl before persistence and checked against PostgreSQL's catalog. Ambiguous
+abbreviations and `posix/` or `right/` trees are rejected. `0002` adds the user-scoped
+creation requests and strengthens the timezone trigger without changing auth tables.
+
+`createHouseholdService` derives identity through the trusted server session resolver.
+Creation writes household, real creator membership, seven-day shopping settings,
+operation and audit in one transaction, then inserts the non-null creation result
+last. The user/key unique constraint settles concurrent requests. A loser rolls back
+its provisional records before reading and hash-checking the winner. Session validity
+is rechecked after the potentially blocking result insert. A replay returns the
+historical household ID only; the server action separately checks current active
+access before navigation, and never reactivates membership.
+
+`/households/[householdId]` shows all membership identities, including inactive ones.
+Every active member can deactivate any member, including themselves, with explicit
+confirmation. The last active member cannot be deactivated: another real account must
+join first. The same guard runs under the household command lock, preventing two
+concurrent removals from orphaning a household. Version conflicts require a page reload
+and renewed confirmation. Deactivation preserves identity, audit and operations; it
+removes authorization immediately for later commands and reads. Reactivation/joining
+requires the invitation flow owned by F04; this slice exposes no accountless-member or
+arbitrary membership insertion endpoint. Persistent household selection belongs to F03.
+
+The F02 integration suite uses a PostgreSQL advisory-lock barrier to force concurrent
+creation requests past preflight before inserting their competing results. It checks
+matching/changed-content races, rollback, timezone normalization, last-active refusal,
+equal permissions, version conflicts, preserved history and removed access. UI tests
+cover explicit settings, stable retry keys and confirmation/conflict behavior. The
+browser test creates two real auth accounts and seeds only their membership relationship
+until F04 provides invitations, then verifies deactivation and denied access end to end.
