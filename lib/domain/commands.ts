@@ -10,7 +10,7 @@ export type DomainTransaction = Parameters<Parameters<DomainDatabase["transactio
 export type AuthenticatedSession = { id: string; userId: string };
 export type JsonValue = schema.JsonValue;
 export class DomainError extends Error {
-  constructor(public readonly code: "UNAUTHENTICATED" | "ACCESS_DENIED" | "NOT_FOUND" | "IDEMPOTENCY_CONFLICT" | "VERSION_CONFLICT" | "INVALID_INPUT") {
+  constructor(public readonly code: "UNAUTHENTICATED" | "ACCESS_DENIED" | "NOT_FOUND" | "IDEMPOTENCY_CONFLICT" | "VERSION_CONFLICT" | "INVALID_INPUT" | "LAST_ACTIVE_MEMBER") {
     super(code);
     this.name = "DomainError";
   }
@@ -34,14 +34,19 @@ export function requestHash(value: JsonValue): string {
   return createHash("sha256").update(canonicalJson(value)).digest("hex");
 }
 
-export function validateTimezone(timezone: string): void {
+export function normalizeTimezone(timezone: string): string {
+  if (typeof timezone !== "string" || /^(posix|right)\//i.test(timezone) || (timezone.toUpperCase() !== "UTC" && !/^[A-Za-z_]+\/[A-Za-z0-9_+\-/]+$/.test(timezone))) throw new DomainError("INVALID_INPUT");
   try {
-    new Intl.DateTimeFormat("en", { timeZone: timezone });
+    const canonical = new Intl.DateTimeFormat("en", { timeZone: timezone }).resolvedOptions().timeZone;
+    if (canonical !== "UTC" && !/^[A-Za-z_]+\/[A-Za-z0-9_+\-/]+$/.test(canonical)) throw new Error();
+    return canonical;
   } catch {
     throw new DomainError("INVALID_INPUT");
   }
-  // UTC is supported explicitly; named regions avoid ambiguous abbreviations/offsets.
-  if (timezone !== "UTC" && !/^[A-Za-z_]+\/[A-Za-z0-9_+\-/]+$/.test(timezone)) throw new DomainError("INVALID_INPUT");
+}
+
+export function validateTimezone(timezone: string): void {
+  normalizeTimezone(timezone);
 }
 
 export function expectVersion(actual: number, expected: number): void {
@@ -57,7 +62,7 @@ export type HouseholdContext = {
 export type CommandContext = HouseholdContext & { operationId: string };
 export type CommandRequest = { householdId: string; idempotencyKey: string; kind: string; input: JsonValue };
 
-async function requireSession(tx: DomainTransaction, identity: AuthenticatedSession) {
+export async function requireSession(tx: DomainTransaction, identity: AuthenticatedSession) {
   const [current] = await tx.select({ id: schema.session.id }).from(schema.session).where(and(
     eq(schema.session.id, identity.id), eq(schema.session.userId, identity.userId),
     sql`${schema.session.expiresAt} > clock_timestamp()`,
@@ -145,6 +150,11 @@ export async function deactivateMember(executor: DomainExecutor, request: {
     )).for("update");
     if (!member) throw new DomainError("NOT_FOUND");
     expectVersion(member.version, request.expectedVersion);
+    if (member.status === "inactive") return { memberId: member.id, status: member.status, version: member.version };
+    const active = await tx.select({ id: schema.householdMembers.id }).from(schema.householdMembers).where(and(
+      eq(schema.householdMembers.householdId, householdId), eq(schema.householdMembers.status, "active"),
+    ));
+    if (active.length === 1) throw new DomainError("LAST_ACTIVE_MEMBER");
     const [updated] = await tx.update(schema.householdMembers).set({
       status: "inactive", version: member.version + 1, updatedAt: new Date(),
     }).where(and(eq(schema.householdMembers.householdId, householdId), eq(schema.householdMembers.id, member.id))).returning();

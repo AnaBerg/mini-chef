@@ -142,3 +142,16 @@ export const auditEvents = pgTable("audit_events", {
   foreignKey({ name: "audit_events_actor_tenant_fk", columns: [t.householdId, t.actorMemberId], foreignColumns: [householdMembers.householdId, householdMembers.id] }).onDelete("restrict"),
   foreignKey({ name: "audit_events_operation_tenant_fk", columns: [t.householdId, t.operationId], foreignColumns: [domainOperations.householdId, domainOperations.id] }).onDelete("restrict"),
 ]);
+
+// Bootstrap results are user scoped because the household does not exist at request time.
+export const householdCreationRequests = pgTable("household_creation_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "restrict" }),
+  idempotencyKey: uuid("idempotency_key").notNull(),
+  requestHash: text("request_hash").notNull(),
+  householdId: uuid("household_id").notNull().references(() => households.id, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  unique("household_creation_requests_user_key").on(t.userId, t.idempotencyKey),
+  check("household_creation_requests_hash_valid", sql`${t.requestHash} ~ '^[a-f0-9]{64}$'`),
+]);
