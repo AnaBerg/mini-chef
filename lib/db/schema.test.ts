@@ -49,8 +49,14 @@ describe("authentication schema", () => {
 
 it("uses restrictive tenant references for every foundation domain table", async () => {
   const { households, householdMembers, shoppingSettings, domainOperations, auditEvents } = await import("./schema");
-  for (const table of [householdMembers, shoppingSettings, domainOperations, auditEvents]) {
+  for (const [table, foreignKeyCount] of [
+    [householdMembers, 2],
+    [shoppingSettings, 1],
+    [domainOperations, 2],
+    [auditEvents, 3],
+  ] as const) {
     const config = getTableConfig(table);
+    expect(config.foreignKeys).toHaveLength(foreignKeyCount);
     expect(table.householdId.notNull).toBe(true);
     for (const reference of config.foreignKeys) {
       expect(reference.onDelete).toBe("restrict");
